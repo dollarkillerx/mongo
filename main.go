@@ -19,7 +19,7 @@ type Db struct {
 	sync.RWMutex
 	init           sync.Once
 	db             *mongo.Client
-	host           string
+	uri            string
 	timeOut        time.Duration
 	maxOpen        int
 	dbPool         *ObjPool   // db对象池
@@ -28,14 +28,14 @@ type Db struct {
 }
 
 // 初始化db
-func Open(host string) (*Db, error) {
+func Open(uri string) (*Db, error) {
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{host}})
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(uri))
 	if err != nil {
 		return nil, err
 	}
 	return &Db{
-		host:    host,
+		uri:     uri,
 		db:      client,
 		timeOut: 10 * time.Second,
 		maxOpen: 2,
@@ -104,13 +104,18 @@ func (d *Db) putDbByTemporary(mongo interface{}) {
 	d.dbTemporary.Put(mongo)
 }
 
+// collection 返回
+func (d *Db) NewCollection(dbName, collection string) *Collection {
+	return &Collection{dbName: dbName, collection: collection, db: d}
+}
+
 // 初始化 对象池
 func (d *Db) initPool() {
 	d.init.Do(func() {
 		// 初始化对对象池
 		d.dbPool = NewObjPoll(func() interface{} {
 			ctx, _ := context.WithTimeout(context.Background(), d.timeOut)
-			client, err := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{d.host}})
+			client, err := mongo.Connect(ctx, options.Client().ApplyURI(d.uri))
 			if err != nil {
 				panic(err)
 			}
@@ -120,7 +125,7 @@ func (d *Db) initPool() {
 		d.dbTemporary = &sync.Pool{
 			New: func() interface{} {
 				ctx, _ := context.WithTimeout(context.Background(), d.timeOut)
-				client, err := mongo.Connect(ctx, &options.ClientOptions{Hosts: []string{d.host}})
+				client, err := mongo.Connect(ctx, options.Client().ApplyURI(d.uri))
 				if err != nil {
 					panic(err)
 				}
