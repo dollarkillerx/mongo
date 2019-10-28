@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/dollarkillerx/mongo"
 	"github.com/dollarkillerx/mongo/clog"
 	"github.com/dollarkillerx/mongo/mongo-driver/bson"
@@ -72,7 +73,6 @@ var (
 )
 
 func main() {
-	log.SetFlags(log.Llongfile | log.LstdFlags)
 	uri := "mongodb://127.0.0.1:27017"
 	db, e := mongo.Open(uri)
 	if e != nil {
@@ -86,11 +86,11 @@ func main() {
 	clog.Println("MongoDb 链接成功")
 
 	// 配置
-	db.SetMaxOpenConn(5)
+	db.SetMaxOpenConn(1)
 	db.SetConnMaxLifetime(400 * time.Millisecond)
 
 	// 创建读取
-	collection := db.New("test", "os")
+	collection := db.NewCollection("test", "os")
 	// 空气数据库
 	e = collection.Drop()
 	if e != nil {
@@ -134,5 +134,43 @@ func main() {
 	log.Println("collection.FindOne: ", one)
 
 	// 查询多条数据 方式一
+	cur, err := collection.Find(context.Background(), bson.D{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := cur.Err(); err != nil {
+		log.Fatal(err)
+	}
+	var all []*Book
+	err = cur.All(context.TODO(), &all)
+	if err != nil {
+		log.Fatal(err)
+	}
+	e = cur.Close(context.TODO())
+	if e != nil {
+		panic(e)
+	}
 
+	log.Println("collection.Find curl.All", all)
+	for _, one := range all {
+		fmt.Println(one)
+	}
+
+	//// 查询多条数据 方式二
+	//cur, err = collection.Find(context.Background(), bson.D{})
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//if err := cur.Err(); err != nil {
+	//	log.Fatal(err)
+	//}
+	//for cur.Next(context.TODO()) {
+	//	var b Book
+	//	if err = cur.Decode(&b); err != nil {
+	//		log.Fatal(err)
+	//	}
+	//	clog.Println("collection.Find cur.Next:")
+	//	clog.Println(b)
+	//}
+	//cur.Close(context.TODO())
 }

@@ -14,3 +14,9 @@ type ResultPul struct {
 	collection     *mongo.Collection
 	tag            int
 }
+
+type ResultDbPul struct {
+	dbName   string
+	database *mongo.Database
+	tag      int
+}

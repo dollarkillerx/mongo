@@ -25,6 +25,8 @@ type Db struct {
 	timeOut             time.Duration
 	maxOpen             int
 	notLimitedOpen      bool     // 不限制打开数量
+	dbPool              sync.Map // 数据库链接池
+	dbTemporary         sync.Map // 临时数据库连接池
 	collectionPool      sync.Map // 存储collectionPool的
 	collectionTemporary sync.Map // 存储临时对象
 }
@@ -51,7 +53,7 @@ func (d *Db) SetConnMaxLifetime(time time.Duration) {
 }
 
 // new
-func (d *Db) New(dbName, collectionName string) *Collection {
+func (d *Db) NewCollection(dbName, collectionName string) *Collection {
 	return &Collection{
 		db:         d,
 		dbName:     dbName,
@@ -113,7 +115,6 @@ func (d *Db) initCollection(dbName, collectionName string) {
 				panic(e)
 			}
 			collection := client.Database(dbName).Collection(collectionName)
-
 			return collection
 		}, d.maxOpen)
 		d.collectionPool.Store(key, poll)
@@ -261,11 +262,9 @@ func (d *Db) getCollection(dbName, collectionName string) (collection *mongo.Col
 func (d *Db) pulCollection(resultPul *ResultPul) error {
 	switch resultPul.tag {
 	case 1:
-		err := d.pulCollectionPool(resultPul.dbName, resultPul.collectionName, resultPul.collection)
-		return err
+		return d.pulCollectionPool(resultPul.dbName, resultPul.collectionName, resultPul.collection)
 	case 2:
-		err := d.pulCollectionTemporary(resultPul.dbName, resultPul.collectionName, resultPul.collection)
-		return err
+		return d.pulCollectionTemporary(resultPul.dbName, resultPul.collectionName, resultPul.collection)
 	default:
 		err := fmt.Errorf("tag 参数错误")
 		clog.PrintWa(err)
