@@ -33,6 +33,8 @@ func (c *Collection) Drop() error {
 		defer c.db.putDbByPool(client)
 	}
 
+	c.db.getCollectionPool()
+
 	collection := client.Database(c.dbName).Collection(c.collection)
 	return collection.Drop(context.TODO())
 }
