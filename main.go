@@ -50,6 +50,15 @@ func (d *Db) SetConnMaxLifetime(time time.Duration) {
 	d.timeOut = time
 }
 
+// new
+func (d *Db) New(dbName, collectionName string) *Collection {
+	return &Collection{
+		db:         d,
+		dbName:     dbName,
+		collection: collectionName,
+	}
+}
+
 // 设置最大打开数目
 func (d *Db) SetMaxOpenConn(maxOpen int) {
 	d.Lock()
