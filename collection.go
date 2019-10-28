@@ -12,15 +12,13 @@ import (
 	"github.com/dollarkillerx/mongo/mongo-driver/mongo"
 	"github.com/dollarkillerx/mongo/mongo-driver/mongo/options"
 	"github.com/dollarkillerx/mongo/mongo-driver/x/bsonx"
-	"sync"
 	"time"
 )
 
 type Collection struct {
-	db             *Db
-	dbName         string // 数据库名称
-	collection     string // 文档
-	collectionPool *sync.Pool
+	db                  *Db
+	dbName              string   // 数据库名称
+	collection          string   // 文档
 }
 
 // 清空数据库
@@ -126,5 +124,3 @@ func (c *Collection) FindOne(ctx context.Context, filter interface{},
 	collection := client.Database(c.dbName).Collection(c.collection)
 	return collection.FindOne(ctx, filter, opts...)
 }
-
-//

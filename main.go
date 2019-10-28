@@ -8,6 +8,8 @@ package mongo
 
 import (
 	"context"
+	"errors"
+	"github.com/dollarkillerx/mongo/clog"
 	"github.com/dollarkillerx/mongo/mongo-driver/mongo"
 	"github.com/dollarkillerx/mongo/mongo-driver/mongo/options"
 	"sync"
@@ -17,14 +19,16 @@ import (
 // db
 type Db struct {
 	sync.RWMutex
-	init           sync.Once
-	db             *mongo.Client
-	uri            string
-	timeOut        time.Duration
-	maxOpen        int
-	dbPool         *ObjPool   // db对象池
-	dbTemporary    *sync.Pool // db备用临时对象池
-	notLimitedOpen bool       // 不限制打开数量
+	init                sync.Once
+	db                  *mongo.Client
+	uri                 string
+	timeOut             time.Duration
+	maxOpen             int
+	dbPool              *ObjPool   // db对象池
+	dbTemporary         *sync.Pool // db备用临时对象池
+	notLimitedOpen      bool       // 不限制打开数量
+	collectionPool      sync.Map   // 存储collectionPool的
+	collectionTemporary sync.Map   // 存储临时对象
 }
 
 // 初始化db
@@ -111,6 +115,9 @@ func (d *Db) NewCollection(dbName, collection string) *Collection {
 
 // 初始化 对象池
 func (d *Db) initPool() {
+	d.Lock()
+	openNum := d.maxOpen
+	d.Unlock()
 	d.init.Do(func() {
 		// 初始化对对象池
 		d.dbPool = NewObjPoll(func() interface{} {
@@ -120,7 +127,7 @@ func (d *Db) initPool() {
 				panic(err)
 			}
 			return client
-		}, d.maxOpen)
+		}, openNum)
 		// 初始化临时对象次
 		d.dbTemporary = &sync.Pool{
 			New: func() interface{} {
@@ -133,4 +140,122 @@ func (d *Db) initPool() {
 			},
 		}
 	})
+}
+
+// 初始化 collection 池
+func (c *Db) initCollectionPool(dbName, collectionName string) {
+	c.Lock()
+	openNum := c.maxOpen
+	c.Unlock()
+	// 创建key
+	key := Sha1Encode(dbName + collectionName)
+	// 初始化对象池
+	// 查询collectionPool中key是否存在
+	_, ok := c.collectionPool.Load(key)
+	if !ok {
+		// 如果不存在 就 创建
+		poll := NewObjPoll(func() interface{} {
+			var client *mongo.Client
+			var err error
+			client, err = c.getDbByPool(time.Millisecond * 200)
+			if err != nil {
+				client = c.getDbByTemporary()
+				defer c.putDbByTemporary(client)
+			} else {
+				defer c.putDbByPool(client)
+			}
+
+			collection := client.Database(dbName).Collection(collectionName)
+			return collection
+		}, openNum)
+
+		c.collectionPool.Store(key, poll)
+	}
+	// 初始化临时对象池
+	_, b := c.collectionTemporary.Load(key)
+	if !b {
+		temporary := &sync.Pool{
+			New: func() interface{} {
+				var client *mongo.Client
+				var err error
+				client, err = c.getDbByPool(time.Millisecond * 200)
+				if err != nil {
+					client = c.getDbByTemporary()
+					defer c.putDbByTemporary(client)
+				} else {
+					defer c.putDbByPool(client)
+				}
+
+				collection := client.Database(dbName).Collection(collectionName)
+				return collection
+			},
+		}
+		c.collectionTemporary.Store(key, temporary)
+	}
+}
+
+// 获取collection pool 内容
+func (d *Db) getCollectionPool(dbName, collectionName string) (*mongo.Collection, error) {
+	key := Sha1Encode(dbName + collectionName)
+	// 初始化pool
+	d.initCollectionPool(dbName, collectionName)
+	value, ok := d.collectionPool.Load(key)
+	if !ok {
+		err := errors.New("不存在")
+		clog.PrintWa(err)
+		return nil, err
+	}
+	collectionPool := value.(*ObjPool)
+	collectionInterface, err := collectionPool.GetObj(d.timeOut)
+	if err != nil {
+		// 如果pool里面为空
+		return nil, err
+	}
+	return collectionInterface.(*mongo.Collection), nil
+}
+
+// 放回collection pool
+func (d *Db) pulCollectionPool(dbName, collectionName string, collection *mongo.Collection) error {
+	key := Sha1Encode(dbName + collectionName)
+
+	value, ok := d.collectionPool.Load(key)
+	if !ok {
+		err := errors.New("不存在")
+		clog.PrintWa(err)
+		return err
+	}
+	collectionPool := value.(*ObjPool)
+	return collectionPool.Release(collection)
+}
+
+// 从临时对象池中获取
+func (d *Db) getCollectionTemporary(dbName, collectionName string) (*mongo.Collection, error) {
+	key := Sha1Encode(dbName + collectionName)
+	// 初始化pool
+	d.initCollectionPool(dbName, collectionName)
+	value, ok := d.collectionTemporary.Load(key)
+	if !ok {
+		err := errors.New("不存在")
+		clog.PrintWa(err)
+		return nil, err
+	}
+	collectionPool := value.(*sync.Pool)
+	collection := collectionPool.Get()
+	return collection.(*mongo.Collection), nil
+}
+
+//放回临时对象池
+func (d *Db) putCollectionTemporary(dbName, collectionName string, data *mongo.Collection) error {
+	key := Sha1Encode(dbName + collectionName)
+	// 初始化pool
+	d.initCollectionPool(dbName, collectionName)
+	value, ok := d.collectionTemporary.Load(key)
+	if !ok {
+		err := errors.New("不存在")
+		clog.PrintWa(err)
+		return err
+	}
+	collectionPool := value.(*sync.Pool)
+	collectionPool.Put(data)
+	return nil
 }
