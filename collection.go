@@ -8,50 +8,38 @@ package mongo
 
 import (
 	"context"
+	"github.com/dollarkillerx/mongo/clog"
 	"github.com/dollarkillerx/mongo/mongo-driver/bson"
 	"github.com/dollarkillerx/mongo/mongo-driver/mongo"
 	"github.com/dollarkillerx/mongo/mongo-driver/mongo/options"
 	"github.com/dollarkillerx/mongo/mongo-driver/x/bsonx"
-	"time"
 )
 
 type Collection struct {
-	db                  *Db
-	dbName              string   // 数据库名称
-	collection          string   // 文档
+	db         *Db
+	dbName     string // 数据库名称
+	collection string // 文档
 }
 
 // 清空数据库
 func (c *Collection) Drop() error {
-	var client *mongo.Client
-	var err error
-	client, err = c.db.getDbByPool(time.Millisecond * 200)
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
 	if err != nil {
-		client = c.db.getDbByTemporary()
-		defer c.db.putDbByTemporary(client)
+		return err
 	} else {
-		defer c.db.putDbByPool(client)
+		defer c.db.pulCollection(resultPul)
 	}
-
-	c.db.getCollectionPool()
-
-	collection := client.Database(c.dbName).Collection(c.collection)
 	return collection.Drop(context.TODO())
 }
 
 // 设置索引
 func (c *Collection) CreatIndex(key string, initial int32) (string, error) {
-	var client *mongo.Client
-	var err error
-	client, err = c.db.getDbByPool(time.Millisecond * 200)
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
 	if err != nil {
-		client = c.db.getDbByTemporary()
-		defer c.db.putDbByTemporary(client)
+		return "", err
 	} else {
-		defer c.db.putDbByPool(client)
+		defer c.db.pulCollection(resultPul)
 	}
-
-	collection := client.Database(c.dbName).Collection(c.collection)
 
 	// 设置索引
 	idx := mongo.IndexModel{
@@ -64,65 +52,88 @@ func (c *Collection) CreatIndex(key string, initial int32) (string, error) {
 
 // 插入一条数据
 func (c *Collection) InsertOne(data interface{}) (*mongo.InsertOneResult, error) {
-	var client *mongo.Client
-	var err error
-	client, err = c.db.getDbByPool(time.Millisecond * 200)
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
 	if err != nil {
-		client = c.db.getDbByTemporary()
-		defer c.db.putDbByTemporary(client)
+		return nil, err
 	} else {
-		defer c.db.putDbByPool(client)
+		defer c.db.pulCollection(resultPul)
 	}
-
-	collection := client.Database(c.dbName).Collection(c.collection)
 	return collection.InsertOne(context.TODO(), data)
 }
 
 // 插件多条数据
 func (c *Collection) InsertMany(data []interface{}) (*mongo.InsertManyResult, error) {
-	var client *mongo.Client
-	var err error
-	client, err = c.db.getDbByPool(time.Millisecond * 200)
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
 	if err != nil {
-		client = c.db.getDbByTemporary()
-		defer c.db.putDbByTemporary(client)
+		return nil, err
 	} else {
-		defer c.db.putDbByPool(client)
+		defer c.db.pulCollection(resultPul)
 	}
-
-	collection := client.Database(c.dbName).Collection(c.collection)
 	return collection.InsertMany(context.TODO(), data)
 }
 
 // 获取总数
 func (c *Collection) CountDocuments() (int64, error) {
-	var client *mongo.Client
-	var err error
-	client, err = c.db.getDbByPool(time.Millisecond * 200)
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
 	if err != nil {
-		client = c.db.getDbByTemporary()
-		defer c.db.putDbByTemporary(client)
+		return 0, err
 	} else {
-		defer c.db.putDbByPool(client)
+		defer c.db.pulCollection(resultPul)
 	}
-
-	collection := client.Database(c.dbName).Collection(c.collection)
 	return collection.CountDocuments(context.TODO(), bson.D{})
 }
 
 // 查询单条数据
 func (c *Collection) FindOne(ctx context.Context, filter interface{},
 	opts ...*options.FindOneOptions) *mongo.SingleResult {
-	var client *mongo.Client
-	var err error
-	client, err = c.db.getDbByPool(time.Millisecond * 200)
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
 	if err != nil {
-		client = c.db.getDbByTemporary()
-		defer c.db.putDbByTemporary(client)
+		clog.PrintWa(err)
+		return nil
 	} else {
-		defer c.db.putDbByPool(client)
+		defer c.db.pulCollection(resultPul)
+	}
+	return collection.FindOne(ctx, filter, opts...)
+}
+
+// 查询多条数据 方式一
+func (c *Collection) Find(ctx context.Context, filter interface{},
+	opts ...*options.FindOptions) (*mongo.Cursor, error) {
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
+	if err != nil {
+		clog.PrintWa(err)
+		return nil, err
+	} else {
+		defer c.db.pulCollection(resultPul)
 	}
 
-	collection := client.Database(c.dbName).Collection(c.collection)
-	return collection.FindOne(ctx, filter, opts...)
+	return collection.Find(ctx, filter, opts...)
+}
+
+// 修改数据
+func (c *Collection) UpdateOne(ctx context.Context, filter interface{}, update interface{},
+	opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
+	if err != nil {
+		clog.PrintWa(err)
+		return nil, err
+	} else {
+		defer c.db.pulCollection(resultPul)
+	}
+
+	return collection.UpdateOne(ctx, filter, update, opts...)
+}
+
+// 删除数据
+func (c *Collection) DeleteOne(ctx context.Context, filter interface{},
+	opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
+	collection, resultPul, err := c.db.getCollection(c.dbName, c.collection)
+	if err != nil {
+		clog.PrintWa(err)
+		return nil, err
+	} else {
+		defer c.db.pulCollection(resultPul)
+	}
+
+	return collection.DeleteOne(ctx, filter, opts...)
 }
