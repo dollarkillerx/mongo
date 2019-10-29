@@ -83,7 +83,6 @@ func (d *Db) getDbPool(dbName string) (*mongo.Database, error) {
 // 放回对象池
 func (d *Db) pulDbPool(dbName string, db *mongo.Database) error {
 	// 初始化pool
-	d.initDbPool(dbName)
 	key := Sha1Encode(dbName)
 
 	value, ok := d.dbPool.Load(key)
@@ -133,7 +132,6 @@ func (d *Db) getDbTemporary(dbName string) (*mongo.Database, error) {
 // 放回临时对象池
 func (d *Db) pulDbTemporary(dbName string, db *mongo.Database) error {
 	// 初始化pool
-	d.initDbPool(dbName)
 	key := Sha1Encode(dbName)
 
 	value, ok := d.dbTemporary.Load(key)
@@ -154,10 +152,10 @@ func (d *Db) pulDbTemporary(dbName string, db *mongo.Database) error {
 }
 
 // 进一步封装
-func (d *Db) getDatabase(dbName string) (database *mongo.Database, ResultDb ResultDbPul, err error) {
+func (d *Db) getDatabase(dbName string) (database *mongo.Database, ResultDb *ResultDbPul, err error) {
 	data, err := d.getDbPool(dbName)
 	if err == nil {
-		ResultDb = ResultDbPul{
+		ResultDb = &ResultDbPul{
 			dbName:   dbName,
 			database: data,
 			tag:      1,
@@ -165,7 +163,7 @@ func (d *Db) getDatabase(dbName string) (database *mongo.Database, ResultDb Resu
 		return data, ResultDb, err
 	} else {
 		temporary, err := d.getDbTemporary(dbName)
-		ResultDb = ResultDbPul{
+		ResultDb = &ResultDbPul{
 			dbName:   dbName,
 			database: data,
 			tag:      2,
@@ -175,7 +173,7 @@ func (d *Db) getDatabase(dbName string) (database *mongo.Database, ResultDb Resu
 }
 
 // 放回的进一步封装
-func (d *Db) pulDatabase(pul ResultDbPul) error {
+func (d *Db) pulDatabase(pul *ResultDbPul) error {
 	switch pul.tag {
 	case 1:
 		return d.pulDbPool(pul.dbName, pul.database)
@@ -189,10 +187,10 @@ func (d *Db) pulDatabase(pul ResultDbPul) error {
 }
 
 // 暴露
-func (d *Db) GetDatabase(dbName string) (database *mongo.Database, ResultDb ResultDbPul, err error) {
+func (d *Db) GetDatabase(dbName string) (database *mongo.Database, ResultDb *ResultDbPul, err error) {
 	return d.getDatabase(dbName)
 }
 
-func (d *Db) PulDatabase(pul ResultDbPul) error {
+func (d *Db) PulDatabase(pul *ResultDbPul) error {
 	return d.pulDatabase(pul)
 }

@@ -1,83 +1,9 @@
-# mongo
-更人性化的mongo操作  (伪ORM)
-
-### 入门
-- [安装](#安装)
-- [快速开始](#快速开始)
-
-### 安装
-``` 
-go get github.com/dollarkillerx/mongo
-```
-
-### 快速开始
-``` 
-    uri := "mongodb://127.0.0.1:27017"
-	db, e := mongo.Open(uri)
-	if e != nil {
-		panic(e)
-	}
-
-	e = db.Ping()
-	if e != nil {
-		panic(e)
-	}
-	clog.Println("MongoDb 链接成功")
-
-	// 配置
-	db.SetMaxOpenConn(1)
-	db.SetConnMaxLifetime(400 * time.Millisecond)
-
-	database := db.Database("okp") // 设置数据库
-	collection := database.Collection("BOOK") // 设置collection
-
-	// 清空数据库和集合
-	e = collection.Drop()
-```
-
-内部做了池化 效率提升
-
-你可以使用我们提供的方法,也可以在池中获取  记得要放回蛤
-
-### 对外暴露的接口 用完要记得放回
-``` 
-    uri := "mongodb://127.0.0.1:27017"
-	db, e := mongo.Open(uri)
-	if e != nil {
-		panic(e)
-	}
-
-	e = db.Ping()
-	if e != nil {
-		panic(e)
-	}
-	clog.Println("MongoDb 链接成功")
-
-	// 配置
-	db.SetMaxOpenConn(1)
-	db.SetConnMaxLifetime(400 * time.Millisecond)
-
-	database := db.Database("okp")
-	collection := database.Collection("BOOK")
-
-	getCollection, pul, e := collection.GetCollection()
-	if e == nil {
-		defer func() {
-			err := collection.PulCollection(pul)
-			if err == nil {
-				log.Println("放回成功")
-			}
-		}()
-	}
-	e = getCollection.Drop(context.TODO())
-	if e == nil {
-		log.Println("数据库清空成功200ok")
-	}
-```
-
-### 简单CURL 操作
-使用本插件提供的方法  都是自动从池中获取 和 放回
-``` 
+/**
+ * @Author: DollarKiller
+ * @Description:
+ * @Github: https://github.com/dollarkillerx
+ * @Date: Create in 10:15 2019-10-29
+ */
 package main
 
 import (
@@ -323,4 +249,3 @@ func main() {
 	}
 	log.Println("collection.DeleteOne:", deleteResult)
 }
-```
