@@ -1,6 +1,7 @@
 # mongo
-更人性化的mongo操作  (伪ORM)
+mongo数据库连接池 适合高并发场景
 
+采用双池设计,保证每次都能获取到
 ### 入门
 - [安装](#安装)
 - [快速开始](#快速开始)
@@ -25,8 +26,8 @@ go get github.com/dollarkillerx/mongo
 	clog.Println("MongoDb 链接成功")
 
 	// 配置
-	db.SetMaxOpenConn(1)
-	db.SetConnMaxLifetime(400 * time.Millisecond)
+	db.SetMaxOpenConn(1) // 设置最大打开数量
+	db.SetConnMaxLifetime(400 * time.Millisecond) // 设置超时时间
 
 	database := db.Database("okp") // 设置数据库
 	collection := database.Collection("BOOK") // 设置collection
